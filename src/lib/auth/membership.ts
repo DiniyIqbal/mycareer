@@ -9,9 +9,13 @@ export type Membership = {
   orgId: string;
   orgName: string;
   orgSlug: string;
+  orgTimezone: string;
   role: MemberRole;
   userId: string;
 };
+
+/** Org Admins and Recruiters (PRD §3). Hiring managers are read-only on jobs. */
+export const isHr = (m: Membership) => m.role === "admin" || m.role === "recruiter";
 
 /**
  * The signed-in user's organisation. MVP assumes one organisation per HR
@@ -24,7 +28,7 @@ export const getMembership = cache(async (): Promise<Membership | null> => {
 
   const { data, error } = await supabase
     .from("members")
-    .select("role, org_id, organisations(name, slug)")
+    .select("role, org_id, organisations(name, slug, timezone)")
     .eq("user_id", user.id)
     .order("created_at")
     .limit(1)
@@ -32,8 +36,15 @@ export const getMembership = cache(async (): Promise<Membership | null> => {
   if (error) throw error;
   if (!data) return null;
 
-  const org = data.organisations as unknown as { name: string; slug: string };
-  return { orgId: data.org_id, orgName: org.name, orgSlug: org.slug, role: data.role, userId: user.id };
+  const org = data.organisations as unknown as { name: string; slug: string; timezone: string };
+  return {
+    orgId: data.org_id,
+    orgName: org.name,
+    orgSlug: org.slug,
+    orgTimezone: org.timezone,
+    role: data.role,
+    userId: user.id,
+  };
 });
 
 export async function requireMembership(): Promise<Membership> {

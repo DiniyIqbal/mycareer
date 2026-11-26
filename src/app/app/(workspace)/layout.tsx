@@ -26,7 +26,11 @@ async function WorkspaceNav() {
   const m = await requireMembership();
   return (
     <>
-      <Link href="/app" className="font-semibold">{m.orgName}</Link>
+      <nav className="flex items-center gap-5">
+        <Link href="/app" className="font-semibold">{m.orgName}</Link>
+        <Link href="/app" className="text-sm hover:underline">Dashboard</Link>
+        <Link href="/app/jobs" className="text-sm hover:underline">Jobs</Link>
+      </nav>
       <div className="flex items-center gap-4 text-sm">
         <Link href={`/careers/${m.orgSlug}`} className="text-zinc-600 hover:underline dark:text-zinc-400">
           Careers page

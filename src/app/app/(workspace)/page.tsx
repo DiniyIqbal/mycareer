@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireMembership } from "@/lib/auth/membership";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,14 +44,17 @@ export default async function DashboardPage() {
         <p className="text-zinc-600 dark:text-zinc-400">No published jobs yet.</p>
       ) : (
         <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-          {/* Rows link to the job's candidate list once that page exists (HR-04). */}
+          {/* Will link to the job's candidate list once that page exists (HR-04). */}
           {activeJobs.map((job) => (
-            <li key={job.id} className="flex items-center justify-between px-4 py-3">
-              <div>
-                <p className="font-medium">{job.title}</p>
-                <p className="text-sm text-zinc-500">{job.location}</p>
-              </div>
-              <span className="text-sm tabular-nums">{job.applicants} applicants</span>
+            <li key={job.id}>
+              <Link href={`/app/jobs/${job.id}`}
+                className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900">
+                <div>
+                  <p className="font-medium">{job.title}</p>
+                  <p className="text-sm text-zinc-500">{job.location}</p>
+                </div>
+                <span className="text-sm tabular-nums">{job.applicants} applicants</span>
+              </Link>
             </li>
           ))}
         </ul>

@@ -64,7 +64,7 @@ supabase/tests                   schema test (PGlite)
 - [x] Schema, RLS, triggers, org bootstrap
 - [x] Auth, onboarding, HR shell, dashboard (HR-01)
 - [x] Careers list + job detail with Google Jobs markup (AP-01, AP-02)
-- [ ] Job create/edit/publish (HR-02, HR-03)
+- [x] Job create/edit/publish/close/archive with screening questions (HR-02, HR-03)
 - [ ] Application form: upload, malware scan, consent, confirmation email (AP-03, AP-04)
 - [ ] Candidate list + profile + resume viewer (HR-04, HR-05)
 - [ ] Pipeline board with realtime (HR-06)
