@@ -68,6 +68,7 @@ supabase/tests                   schema test (PGlite)
 - `audit_log` is append-only. The only exceptions are cascades: deleting an organisation removes its log, and deleting a user clears `actor_id`.
 - The public form has a honeypot field but no rate limit yet; add one (e.g. per IP at the edge) before launch.
 - The seeded privacy notice is marked DRAFT and needs legal review before real candidates apply.
+- Data requests (AP-05): candidates confirm by email before HR sees a request; the public form gives the same reply whether or not an address is on file and allows 3 requests per address per day. Exports leave out internal HR notes and rejection reasons, and **whether those must be disclosed is a question for legal review**. Erasure deletes the candidate's rows by cascade and their resume files, and keeps only the request record.
 - Resumes live in a private bucket with no client policies; access goes through the server, which writes `audit_log` and returns a short-lived signed URL.
 - Supabase grants new tables to `anon` by default: every new migration must enable RLS and revoke/grant explicitly.
 
@@ -85,4 +86,6 @@ supabase/tests                   schema test (PGlite)
 - [x] Team invites (7-day, email-bound links), roles, last-admin guard, hiring-manager assignment to jobs
 - [x] Message sender worker (quiet hours, retries); needs a scheduler in production
 - [ ] Recover messages stuck in `sending` if a send crashes mid-way
-- [ ] Data export/deletion requests (AP-05), PWA, Bahasa Melayu, WCAG pass
+- [x] Data access/correction/deletion requests with email verification, 21-day queue, export link and erasure (AP-05)
+- [ ] Automatic deletion after the retention period in the privacy notice (12 months)
+- [ ] PWA, Bahasa Melayu, WCAG pass

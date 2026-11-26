@@ -26,11 +26,11 @@ export default function WorkspaceLayout({ children }: LayoutProps<"/app">) {
 async function WorkspaceNav() {
   const m = await requireMembership();
   const supabase = await createClient();
-  const { count } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", m.userId)
-    .is("read_at", null);
+  const [{ count }, { count: openRequests }] = await Promise.all([
+    supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", m.userId).is("read_at", null),
+    // RLS: HR only; hiring managers get 0.
+    supabase.from("data_requests").select("id", { count: "exact", head: true }).eq("org_id", m.orgId).eq("status", "open"),
+  ]);
   const unread = count ?? 0;
   return (
     <>
@@ -39,6 +39,11 @@ async function WorkspaceNav() {
         <Link href="/app" className="text-sm hover:underline">Dashboard</Link>
         <Link href="/app/jobs" className="text-sm hover:underline">Jobs</Link>
         <Link href="/app/candidates" className="text-sm hover:underline">Candidates</Link>
+        {isHr(m) && (
+          <Link href="/app/requests" className="text-sm hover:underline">
+            Data requests{openRequests ? <span className="ml-1 rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">{openRequests}</span> : null}
+          </Link>
+        )}
         {isHr(m) && <Link href="/app/settings/team" className="text-sm hover:underline">Settings</Link>}
       </nav>
       <div className="flex items-center gap-4 text-sm">

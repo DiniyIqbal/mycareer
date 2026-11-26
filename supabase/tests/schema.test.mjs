@@ -276,5 +276,39 @@ ok(emailEdit, "admins cannot change a member's email");
 const hmByRecruiter = await as('authenticated', N, () => one(`update members set role='admin' where user_id=$1 returning user_id`, [HM]));
 ok(hmByRecruiter.length === 0, 'recruiters cannot change roles');
 
+// AP-05: data requests and erasure
+const [{ id: aliId }] = await one(`select id from candidates where org_id=$1 and email='ali@mail.test'`, [orgA]);
+const [{ id: aliApp }] = await one(`select id from applications where candidate_id=$1`, [aliId]);
+await one(`insert into notes(org_id,application_id,author_id,body) values ($1,$2,$3,'Ali note')`, [orgA, aliApp, A]);
+await one(`insert into notifications(org_id,user_id,kind,payload) values ($1,$2,'mention',$3)`, [orgA, A, JSON.stringify({ candidate_id: aliId, candidate_name: 'Ali' })]);
+const req = async (kind, cand = aliId) => (await one(
+  `insert into data_requests(org_id,candidate_id,email,kind,status,verified_at) values ($1,$2,'ali@mail.test',$3,'open',now()) returning id`,
+  [orgA, cand, kind]))[0].id;
+const delReq = await req('delete'), exportReq = await req('export');
+const erase = (uid, id) => errCode(() => as('authenticated', uid, () => one(`select public.erase_candidate($1) as paths`, [id])));
+ok(await erase(HM, delReq) === '42501', 'hiring manager cannot erase a candidate');
+ok(await erase(B, delReq) === '42501', 'another organisation cannot erase a candidate');
+ok(await erase(A, exportReq) === 'MC422', 'an export request cannot erase data');
+let hrInsertReq = false;
+try { await as('authenticated', A, () => one(`insert into data_requests(org_id,email,kind) values ($1,'x@y.test','delete')`, [orgA])); } catch { hrInsertReq = true; }
+ok(hrInsertReq, 'HR cannot create requests on behalf of candidates');
+let hrEditEmail = false;
+try { await as('authenticated', A, () => one(`update data_requests set email='other@y.test' where id=$1`, [exportReq])); } catch { hrEditEmail = true; }
+ok(hrEditEmail, 'HR cannot change who a request is from');
+const [{ paths }] = await as('authenticated', A, () => one(`select public.erase_candidate($1) as paths`, [delReq]));
+ok(Array.isArray(paths) && paths.includes(`${orgA}/x/2.pdf`), 'erase returns the resume paths to delete from storage');
+ok((await one(`select 1 from candidates where id=$1`, [aliId])).length === 0
+  && (await one(`select 1 from applications where id=$1`, [aliApp])).length === 0
+  && (await one(`select 1 from notes where application_id=$1`, [aliApp])).length === 0
+  && (await one(`select 1 from consent_records where candidate_id=$1`, [aliId])).length === 0
+  && (await one(`select 1 from messages where application_id=$1`, [aliApp])).length === 0
+  && (await one(`select 1 from notifications where payload->>'candidate_id'=$1`, [aliId])).length === 0,
+  'candidate, applications, notes, consent, emails and notifications are all gone');
+const [doneReq] = await one(`select status, candidate_id, handled_by, email from data_requests where id=$1`, [delReq]);
+ok(doneReq.status === 'completed' && doneReq.candidate_id === null && doneReq.handled_by === A && doneReq.email === 'ali@mail.test',
+  'request is closed and kept as the record of handling');
+ok((await one(`select 1 from audit_log where action='candidate.erase' and entity_id=$1`, [aliId])).length === 1, 'erasure is audited');
+ok(await erase(A, delReq) === 'MC422', 'a completed request cannot be replayed');
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

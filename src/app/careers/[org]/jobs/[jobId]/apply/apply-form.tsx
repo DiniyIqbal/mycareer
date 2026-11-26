@@ -131,6 +131,10 @@ export function ApplyForm({ orgSlug, orgName, jobId, jobTitle, questions, notice
           <span>I have read the privacy notice and agree to {orgName} processing my data to assess my application.</span>
         </label>
         {errors.consent && <p id="consent-error" className="mt-1 text-sm text-red-700 dark:text-red-400">{errors.consent}</p>}
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          You can ask to see, correct or delete your data at any time on the{" "}
+          <Link href={`/careers/${orgSlug}/privacy`} className="underline">Your data</Link> page.
+        </p>
       </div>
 
       <button type="submit" disabled={pending}

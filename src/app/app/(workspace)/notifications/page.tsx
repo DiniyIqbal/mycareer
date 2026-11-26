@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import { requireMembership } from "@/lib/auth/membership";
 import { formatDateTime } from "@/lib/dates";
+import { kindLabel } from "@/lib/privacy/requests";
 import { createClient } from "@/lib/supabase/server";
 import { markAllRead } from "./actions";
 
 type Payload = {
+  kind?: string;
   author_name?: string;
   candidate_name?: string;
   job_title?: string;
@@ -61,7 +63,9 @@ async function List() {
                 <span className="min-w-0">
                   <span className="block text-sm">
                     {!n.read_at && <span className="sr-only">Unread: </span>}
-                    {n.kind === "job_assigned" ? (
+                    {n.kind === "data_request" ? (
+                      <>A candidate confirmed a <strong>{kindLabel(p.kind ?? "")}</strong> data request. Reply within 21 days.</>
+                    ) : n.kind === "job_assigned" ? (
                       <><strong>{p.author_name ?? "A colleague"}</strong> added you to the hiring team for <strong>{p.job_title}</strong></>
                     ) : (
                       <><strong>{p.author_name ?? "A colleague"}</strong> mentioned you on{" "}

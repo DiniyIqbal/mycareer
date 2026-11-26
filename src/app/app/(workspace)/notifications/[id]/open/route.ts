@@ -17,7 +17,10 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/app/notifica
     .eq("id", id)
     .select("payload")
     .maybeSingle();
-  const p = (data?.payload ?? {}) as { candidate_id?: string; application_id?: string; job_id?: string };
+  const p = (data?.payload ?? {}) as { candidate_id?: string; application_id?: string; job_id?: string; request_id?: string };
+  if (p.request_id && UUID.test(p.request_id)) {
+    return NextResponse.redirect(new URL(`/app/requests/${p.request_id}`, request.url), 303);
+  }
   if (!p.candidate_id && p.job_id && UUID.test(p.job_id)) {
     return NextResponse.redirect(new URL(`/app/jobs/${p.job_id}/pipeline`, request.url), 303);
   }
