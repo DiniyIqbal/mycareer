@@ -1,1 +1,73 @@
 # mycareer
+
+Applicant tracking system (ATS) for small and mid-size organisations: post a job once, receive every application in one pipeline, and keep candidates informed automatically.
+
+**Stack:** Next.js 16 (App Router, Cache Components) · TypeScript · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage, RLS) · Resend
+
+## Decisions (2026-11-26)
+
+| Topic | Decision |
+|---|---|
+| Tenancy | Multi-tenant from day one. Every row has `org_id`; child tables use composite `(org_id, id)` foreign keys. |
+| Public pages | Next.js server-rendered careers pages with Google Jobs `JobPosting` JSON-LD, cached with `use cache`. |
+| Email | Gmail SMTP for testing now, Resend for production. Switch with `EMAIL_PROVIDER`; app code only calls `sendEmail()` in `src/lib/email`. |
+| Resume formats | PDF and DOCX. DOCX is converted to PDF server-side for the in-app viewer. |
+| Status emails in MVP | Yes: minimal stage-change automations (Interview, Offer, Rejected after 48h). Moving a candidate again cancels pending automated emails. |
+| Quiet hours | Automated messages respect 8am–9pm candidate local time; the application confirmation is transactional and exempt. |
+
+## Getting started
+
+```bash
+cp .env.example .env.local   # fill in Supabase + Resend keys
+npm install
+npx supabase link --project-ref <ref>
+npx supabase db push --remote   # applies supabase/migrations (CLI v3 defaults to a local stack)
+npm run dev
+```
+
+In Supabase Auth → URL Configuration, set Site URL to `http://localhost:3000` and add `http://localhost:3000/**` to Redirect URLs. The default email templates work; custom ones may link to
+`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`.
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | Production build |
+| `npm run typecheck` / `npm run lint` | Static checks |
+| `npm run email:test -- you@example.com` | Sends one test email with the Gmail settings in `.env.local` |
+| `npm run test:db` | Applies all migrations to in-memory Postgres (PGlite) and checks RLS, tenant isolation and pipeline triggers. No Docker needed. |
+
+## Layout
+
+```
+src/app/careers/[org]            public careers page + job detail (JSON-LD)
+src/app/app/(workspace)          HR app (requires membership)
+src/app/app/onboarding           create organisation → caller becomes Org Admin
+src/app/login, src/app/auth      sign-in / sign-up / email confirmation
+src/lib/supabase                 server (user, RLS), public (anon, cacheable), admin (service role)
+src/proxy.ts                     session refresh + optimistic /app guard
+supabase/migrations              schema, RLS, triggers, seed per organisation
+supabase/tests                   schema test (PGlite)
+```
+
+## Security notes
+
+- Authorisation lives in Postgres RLS; the proxy is only an optimistic redirect.
+- Anonymous users can read only public columns of organisations and published jobs.
+- Applications are written by the server (service role) after validation, consent and upload checks — anon has no insert rights.
+- Resumes live in a private bucket with no client policies; access goes through the server, which writes `audit_log` and returns a short-lived signed URL.
+- Supabase grants new tables to `anon` by default: every new migration must enable RLS and revoke/grant explicitly.
+
+## MVP progress
+
+- [x] Schema, RLS, triggers, org bootstrap
+- [x] Auth, onboarding, HR shell, dashboard (HR-01)
+- [x] Careers list + job detail with Google Jobs markup (AP-01, AP-02)
+- [ ] Job create/edit/publish (HR-02, HR-03)
+- [ ] Application form: upload, malware scan, consent, confirmation email (AP-03, AP-04)
+- [ ] Candidate list + profile + resume viewer (HR-04, HR-05)
+- [ ] Pipeline board with realtime (HR-06)
+- [ ] Notes, @mentions, hiring-manager assignment, templates (HR-07, HR-08)
+- [ ] Message sender worker (quiet hours, retries)
+- [ ] Data export/deletion requests (AP-05), PWA, Bahasa Melayu, WCAG pass
