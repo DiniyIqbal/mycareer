@@ -1,10 +1,19 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isHr, requireMembership } from "@/lib/auth/membership";
 import { createClient } from "@/lib/supabase/server";
 import { EMPTY_JOB, JobForm } from "../job-form";
 
-export default async function NewJobPage() {
+export default function NewJobPage() {
+  return (
+    <Suspense fallback={<p className="text-zinc-500">Loading…</p>}>
+      <NewJob />
+    </Suspense>
+  );
+}
+
+async function NewJob() {
   const m = await requireMembership();
   if (!isHr(m)) redirect("/app/jobs");
 

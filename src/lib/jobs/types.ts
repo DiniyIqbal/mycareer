@@ -1,5 +1,6 @@
 // Hand-written until a Supabase project exists; then replace with
 // `npx supabase gen types typescript` output.
+import type { ScreeningQuestion } from "./schema";
 
 export type EmploymentType = "full_time" | "part_time" | "contractor" | "temporary" | "intern" | "other";
 export type WorkplaceType = "onsite" | "hybrid" | "remote";
@@ -30,10 +31,13 @@ export type PublicJob = {
   salary_period: SalaryPeriod | null;
   published_at: string;
   closes_at: string | null;
+  screening_questions: ScreeningQuestion[] | null;
 };
 
 export const PUBLIC_JOB_COLUMNS =
-  "id, org_id, title, description, location, address_locality, address_region, address_country, workplace_type, employment_type, salary_min, salary_max, salary_currency, salary_period, published_at, closes_at";
+  "id, org_id, title, description, location, address_locality, address_region, address_country, workplace_type, employment_type, salary_min, salary_max, salary_currency, salary_period, published_at, closes_at, screening_questions";
+
+export type ConsentNotice = { id: string; version: number; locale: string; body: string };
 
 export const EMPLOYMENT_TYPE_LABEL: Record<EmploymentType, string> = {
   full_time: "Full-time",

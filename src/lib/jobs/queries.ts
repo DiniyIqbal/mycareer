@@ -1,7 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { createPublicClient } from "@/lib/supabase/public";
-import { PUBLIC_JOB_COLUMNS, type PublicJob, type PublicOrganisation } from "./types";
+import { PUBLIC_JOB_COLUMNS, type ConsentNotice, type PublicJob, type PublicOrganisation } from "./types";
 
 // Public careers data is cached (PRD §13: pages load in < 3s on 4G).
 // HR actions that publish/close/edit a job must call
@@ -62,6 +62,25 @@ export async function getPublishedJob(orgId: string, jobId: string) {
     .maybeSingle();
   if (error) throw error;
   return data as PublicJob | null;
+}
+
+/** Latest published privacy notice for job applications (PDPA). */
+export async function getConsentNotice(orgId: string, locale: "en" | "ms" = "en") {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag(`consent:${orgId}`);
+
+  const { data, error } = await createPublicClient()
+    .from("consent_notices")
+    .select("id, version, locale, body")
+    .eq("org_id", orgId)
+    .eq("purpose", "application")
+    .in("locale", locale === "en" ? ["en"] : [locale, "en"])
+    .order("version", { ascending: false })
+    .limit(2);
+  if (error) throw error;
+  // Prefer the requested language, fall back to English.
+  return ((data ?? []).find((n) => n.locale === locale) ?? data?.[0] ?? null) as ConsentNotice | null;
 }
 
 function escapeLike(value: string) {

@@ -1,10 +1,19 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { requireMembership } from "@/lib/auth/membership";
 import { createClient } from "@/lib/supabase/server";
 
 // HR-01: totals come straight from the database on every request, scoped by
 // RLS (hiring managers only see their assigned jobs and candidates).
-export default async function DashboardPage() {
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<p className="text-zinc-500">Loading dashboard…</p>}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+async function Dashboard() {
   const m = await requireMembership();
   const supabase = await createClient();
 

@@ -133,5 +133,55 @@ let immutable = false;
 try { await one(`delete from audit_log`); } catch { immutable = true; }
 ok(immutable, 'audit_log is append-only');
 
+// Public application (AP-03/04) through submit_application
+const [{ id: noticeA }] = await one(`select id from consent_notices where org_id=$1 and locale='en'`, [orgA]);
+const [{ id: noticeB }] = await one(`select id from consent_notices where org_id=$1 and locale='en'`, [orgB]);
+const submit = (job, email, notice, path) => one(
+  `select public.submit_application($1,$2,'Ali Bin Abu','+60 12-345 6789','Asia/Kuala_Lumpur','en','linkedin',
+     '{"q1":{"question":"Licence?","answer":"yes"}}'::jsonb,$3,$4,'cv.pdf','application/pdf',1234) as r`,
+  [job, email, notice, path]);
+
+let anonBlocked = false;
+try { await as('anon', null, () => submit(jobId, 'ali@mail.test', noticeA, `${orgA}/x/1.pdf`)); } catch { anonBlocked = true; }
+ok(anonBlocked, 'anon cannot call submit_application');
+
+await one(`update jobs set automations_paused=false where id=$1`, [jobId]);
+const [{ r: submitted }] = await as('service_role', null, () => submit(jobId, ' Ali@Mail.TEST ', noticeA, `${orgA}/x/2.pdf`));
+const subApp = (await one(`select a.source, a.answers, a.resume_file_id is not null as has_file, c.email, s.kind
+  from applications a join candidates c on c.id=a.candidate_id join pipeline_stages s on s.id=a.stage_id
+  where a.id=$1`, [submitted.application_id]))[0];
+ok(subApp?.email === 'ali@mail.test' && subApp.kind === 'new' && subApp.has_file && subApp.source === 'linkedin',
+  'submit_application creates candidate, file and application in New');
+ok((await one(`select 1 from consent_records where application_id=$1 and notice_id=$2`, [submitted.application_id, noticeA])).length === 1,
+  'consent record stored with the notice shown');
+const conf = (await one(`select template_key, status, respect_quiet_hours from messages where id=$1`, [submitted.message_id]))[0];
+ok(conf?.template_key === 'application_received' && conf.status === 'queued' && conf.respect_quiet_hours === false,
+  'confirmation email queued, exempt from quiet hours');
+
+const errCode = async (fn) => { try { await fn(); return null; } catch (e) { return e.code; } };
+ok(await errCode(() => as('service_role', null, () => submit(jobId, 'ali@mail.test', noticeA, `${orgA}/x/3.pdf`))) === '23505',
+  'second application to the same job is rejected');
+ok((await one(`select 1 from candidate_files where storage_path=$1`, [`${orgA}/x/3.pdf`])).length === 0,
+  'rejected application leaves no file row behind');
+ok(await errCode(() => as('service_role', null, () => submit(draftId, 'new@mail.test', noticeA, `${orgA}/x/4.pdf`))) === 'P0001',
+  'draft job rejects public application');
+ok(await errCode(() => as('service_role', null, () => submit(jobId, 'new@mail.test', noticeB, `${orgA}/x/5.pdf`))) === '22023',
+  "another organisation's consent notice is rejected");
+
+// Deleting an organisation with applications and consent records cascades cleanly
+const D = '44444444-4444-4444-4444-444444444444';
+await one(`insert into auth.users(id,email) values ($1,'d@gone.test')`, [D]);
+const [{ create_organisation: orgD }] = await as('authenticated', D, () => one(`select public.create_organisation('Gone Co','gone-co')`));
+const [{ id: jobD }] = await one(`insert into jobs(org_id,title,status,published_at) values ($1,'Temp','published',now()) returning id`, [orgD]);
+const [{ id: noticeD }] = await one(`select id from consent_notices where org_id=$1 and locale='en'`, [orgD]);
+await as('service_role', null, () => submit(jobD, 'temp@mail.test', noticeD, `${orgD}/x/1.pdf`));
+let orgDeleted = true;
+try { await one(`delete from organisations where id=$1`, [orgD]); } catch (e) { orgDeleted = false; console.log('   ', e.message); }
+ok(orgDeleted && (await one(`select 1 from candidates where org_id=$1`, [orgD])).length === 0,
+  'deleting an organisation removes its applications and consent records');
+let stageInUse = false;
+try { await one(`delete from pipeline_stages where id=$1`, [stage.new]); } catch { stageInUse = true; }
+ok(stageInUse, 'a stage with applications cannot be deleted');
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

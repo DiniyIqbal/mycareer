@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { isHr, requireMembership } from "@/lib/auth/membership";
 import { formatDate } from "@/lib/dates";
@@ -10,7 +11,15 @@ const TABS = [
   { key: "archived", label: "Archived", statuses: ["archived"] },
 ] as const;
 
-export default async function JobsPage(props: PageProps<"/app/jobs">) {
+export default function JobsPage(props: PageProps<"/app/jobs">) {
+  return (
+    <Suspense fallback={<p className="text-zinc-500">Loading jobs…</p>}>
+      <Jobs searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function Jobs(props: Pick<PageProps<"/app/jobs">, "searchParams">) {
   const m = await requireMembership();
   const { tab: tabParam } = await props.searchParams;
   const tab = TABS.find((t) => t.key === tabParam) ?? TABS[0];

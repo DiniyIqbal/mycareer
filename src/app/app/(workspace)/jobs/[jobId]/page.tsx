@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isHr, requireMembership } from "@/lib/auth/membership";
@@ -10,7 +11,17 @@ import { StatusPanel } from "../status-panel";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function JobPage(props: PageProps<"/app/jobs/[jobId]">) {
+type Props = PageProps<"/app/jobs/[jobId]">;
+
+export default function JobPage(props: Props) {
+  return (
+    <Suspense fallback={<p className="text-zinc-500">Loading job…</p>}>
+      <Job params={props.params} searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function Job(props: Pick<Props, "params" | "searchParams">) {
   const { jobId } = await props.params;
   const { created } = await props.searchParams;
   if (!UUID.test(jobId)) notFound();

@@ -55,7 +55,10 @@ supabase/tests                   schema test (PGlite)
 
 - Authorisation lives in Postgres RLS; the proxy is only an optimistic redirect.
 - Anonymous users can read only public columns of organisations and published jobs.
-- Applications are written by the server (service role) after validation, consent and upload checks — anon has no insert rights.
+- Applications are written by the server (service role) after validation, consent and upload checks — anon has no insert rights. `public.submit_application` does all the inserts in one transaction and is executable by `service_role` only.
+- Resume type is checked from the file's bytes (`%PDF-` / Word ZIP), not its name or browser MIME type. New files are `scan_status = 'pending'`; **no malware scanner is wired up yet**, so HR must not be able to open a file until a scanner marks it `clean` (to do with the resume viewer).
+- The public form has a honeypot field but no rate limit yet; add one (e.g. per IP at the edge) before launch.
+- The seeded privacy notice is marked DRAFT and needs legal review before real candidates apply.
 - Resumes live in a private bucket with no client policies; access goes through the server, which writes `audit_log` and returns a short-lived signed URL.
 - Supabase grants new tables to `anon` by default: every new migration must enable RLS and revoke/grant explicitly.
 
@@ -65,7 +68,8 @@ supabase/tests                   schema test (PGlite)
 - [x] Auth, onboarding, HR shell, dashboard (HR-01)
 - [x] Careers list + job detail with Google Jobs markup (AP-01, AP-02)
 - [x] Job create/edit/publish/close/archive with screening questions (HR-02, HR-03)
-- [ ] Application form: upload, malware scan, consent, confirmation email (AP-03, AP-04)
+- [x] Application form: resume upload, screening answers, PDPA consent, confirmation email (AP-03, AP-04)
+- [ ] Malware scanning and DOCX→PDF preview for uploaded resumes
 - [ ] Candidate list + profile + resume viewer (HR-04, HR-05)
 - [ ] Pipeline board with realtime (HR-06)
 - [ ] Notes, @mentions, hiring-manager assignment, templates (HR-07, HR-08)

@@ -6,6 +6,7 @@ import { publicEnv } from "@/lib/env";
 import { jobPostingJsonLd, serializeJsonLd } from "@/lib/jobs/json-ld";
 import { getOrganisationBySlug, getPublishedJob } from "@/lib/jobs/queries";
 import { EMPLOYMENT_TYPE_LABEL, WORKPLACE_LABEL } from "@/lib/jobs/types";
+import { ApplyLink, ApplyLinkFallback } from "./apply-link";
 
 // Cached via `use cache` in the queries (ISR with Cache Components). Crawlers
 // such as Googlebot get a fully rendered page, including the JSON-LD.
@@ -55,6 +56,7 @@ async function JobDetails({ params }: Pick<Props, "params">) {
   if (!data) notFound();
   const { org, job, url } = data;
   const salary = formatSalary(job.salary_min, job.salary_max, job.salary_currency, job.salary_period);
+  const applyHref = `/careers/${org.slug}/jobs/${job.id}/apply`;
 
   return (
     <>
@@ -70,8 +72,24 @@ async function JobDetails({ params }: Pick<Props, "params">) {
         {[job.location, WORKPLACE_LABEL[job.workplace_type], EMPLOYMENT_TYPE_LABEL[job.employment_type], salary]
           .filter(Boolean).join(" · ")}
       </p>
-      {/* Apply button + form (AP-03) land in the next iteration. */}
+      <Apply href={applyHref} />
       <article className="mt-8 whitespace-pre-line leading-7">{job.description}</article>
+      <div className="mt-10 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <Apply href={applyHref} />
+      </div>
     </>
+  );
+}
+
+const applyClass =
+  "inline-block w-full rounded-md bg-zinc-900 px-6 py-3 text-center font-medium text-white sm:w-auto dark:bg-white dark:text-zinc-900";
+
+function Apply({ href }: { href: string }) {
+  return (
+    <div className="mt-6">
+      <Suspense fallback={<ApplyLinkFallback href={href} className={applyClass} />}>
+        <ApplyLink href={href} className={applyClass} />
+      </Suspense>
+    </div>
   );
 }
