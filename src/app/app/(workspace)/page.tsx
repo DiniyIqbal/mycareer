@@ -40,7 +40,9 @@ async function Dashboard() {
       <dl className="mb-10 grid gap-4 sm:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
           <dt className="text-sm text-zinc-500">Total candidates</dt>
-          <dd className="text-3xl font-semibold tabular-nums">{candidates.count ?? 0}</dd>
+          <dd className="text-3xl font-semibold tabular-nums">
+            <Link href="/app/candidates" className="hover:underline">{candidates.count ?? 0}</Link>
+          </dd>
         </div>
         <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
           <dt className="text-sm text-zinc-500">Active jobs</dt>
@@ -53,10 +55,9 @@ async function Dashboard() {
         <p className="text-zinc-600 dark:text-zinc-400">No published jobs yet.</p>
       ) : (
         <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-          {/* Will link to the job's candidate list once that page exists (HR-04). */}
           {activeJobs.map((job) => (
             <li key={job.id}>
-              <Link href={`/app/jobs/${job.id}`}
+              <Link href={`/app/candidates?job=${job.id}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900">
                 <div>
                   <p className="font-medium">{job.title}</p>

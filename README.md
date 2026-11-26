@@ -56,7 +56,8 @@ supabase/tests                   schema test (PGlite)
 - Authorisation lives in Postgres RLS; the proxy is only an optimistic redirect.
 - Anonymous users can read only public columns of organisations and published jobs.
 - Applications are written by the server (service role) after validation, consent and upload checks — anon has no insert rights. `public.submit_application` does all the inserts in one transaction and is executable by `service_role` only.
-- Resume type is checked from the file's bytes (`%PDF-` / Word ZIP), not its name or browser MIME type. New files are `scan_status = 'pending'`; **no malware scanner is wired up yet**, so HR must not be able to open a file until a scanner marks it `clean` (to do with the resume viewer).
+- Resume type is checked from the file's bytes (`%PDF-` / Word ZIP), not its name or browser MIME type. New files are `scan_status = 'pending'`; **no malware scanner is wired up yet**. Until one is, HR can open pending files (with a warning on the profile); files marked `infected` are refused. Resumes are served from the storage domain via 60-second signed URLs, never from the app's origin.
+- `audit_log` is append-only. The only exceptions are cascades: deleting an organisation removes its log, and deleting a user clears `actor_id`.
 - The public form has a honeypot field but no rate limit yet; add one (e.g. per IP at the edge) before launch.
 - The seeded privacy notice is marked DRAFT and needs legal review before real candidates apply.
 - Resumes live in a private bucket with no client policies; access goes through the server, which writes `audit_log` and returns a short-lived signed URL.
@@ -70,7 +71,7 @@ supabase/tests                   schema test (PGlite)
 - [x] Job create/edit/publish/close/archive with screening questions (HR-02, HR-03)
 - [x] Application form: resume upload, screening answers, PDPA consent, confirmation email (AP-03, AP-04)
 - [ ] Malware scanning and DOCX→PDF preview for uploaded resumes
-- [ ] Candidate list + profile + resume viewer (HR-04, HR-05)
+- [x] Candidate list + profile + audited resume access (HR-04, HR-05)
 - [ ] Pipeline board with realtime (HR-06)
 - [ ] Notes, @mentions, hiring-manager assignment, templates (HR-07, HR-08)
 - [ ] Message sender worker (quiet hours, retries)

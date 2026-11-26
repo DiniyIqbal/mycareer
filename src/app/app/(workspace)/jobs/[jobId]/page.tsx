@@ -29,13 +29,14 @@ async function Job(props: Pick<Props, "params" | "searchParams">) {
   const m = await requireMembership();
   const supabase = await createClient();
   const [{ data: job, error }, { data: departments }] = await Promise.all([
-    supabase.from("jobs").select("*, departments(name)").eq("id", jobId).eq("org_id", m.orgId).maybeSingle(),
+    supabase.from("jobs").select("*, departments(name), applications(count)").eq("id", jobId).eq("org_id", m.orgId).maybeSingle(),
     supabase.from("departments").select("name").eq("org_id", m.orgId).order("name"),
   ]);
   if (error) throw error;
   if (!job) notFound(); // also covers jobs a hiring manager is not assigned to (RLS)
 
   const canManage = isHr(m);
+  const applicants = (job.applications as unknown as { count: number }[] | null)?.[0]?.count ?? 0;
   const str = (v: unknown) => (v == null ? "" : String(v));
   const initial: JobFormValues = {
     id: job.id,
@@ -60,7 +61,12 @@ async function Job(props: Pick<Props, "params" | "searchParams">) {
     <main className="max-w-3xl space-y-6">
       <div>
         <Link href="/app/jobs" className="text-sm text-zinc-500 hover:underline">← Jobs</Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">{job.title}</h1>
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
+          <Link href={`/app/candidates?job=${job.id}`} className="text-sm font-medium underline">
+            {applicants} {applicants === 1 ? "candidate" : "candidates"} →
+          </Link>
+        </div>
         {created && (
           <p role="status" className="mt-2 text-sm text-green-700 dark:text-green-500">
             Draft saved. Publish it when you are ready for applicants.

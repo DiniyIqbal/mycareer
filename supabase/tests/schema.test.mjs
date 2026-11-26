@@ -183,5 +183,27 @@ let stageInUse = false;
 try { await one(`delete from pipeline_stages where id=$1`, [stage.new]); } catch { stageInUse = true; }
 ok(stageInUse, 'a stage with applications cannot be deleted');
 
+// Audit log: still immutable directly, but follows user / organisation deletion
+let auditEdit = false;
+try { await one(`update audit_log set action='tampered'`); } catch { auditEdit = true; }
+ok(auditEdit, 'audit_log rows cannot be edited');
+let auditNull = false;
+try { await one(`update audit_log set actor_id=null`); } catch { auditNull = true; }
+ok(auditNull, 'audit_log actor cannot be blanked while the user exists');
+
+const E = '55555555-5555-5555-5555-555555555555';
+await one(`insert into auth.users(id,email) values ($1,'e@leaving.test')`, [E]);
+const [{ create_organisation: orgE }] = await as('authenticated', E, () => one(`select public.create_organisation('Leaving Co','leaving-co')`));
+await one(`insert into audit_log(org_id,actor_id,action,entity) values ($1,$2,'resume.view','candidate_file')`, [orgE, E]);
+await one(`insert into audit_log(org_id,actor_id,action,entity) values ($1,$2,'resume.view','candidate_file')`, [orgA, E]);
+let userDeleted = true;
+try { await one(`delete from auth.users where id=$1`, [E]); } catch (e) { userDeleted = false; console.log('   ', e.message); }
+ok(userDeleted && (await one(`select 1 from audit_log where org_id=$1 and actor_id is null and action='resume.view'`, [orgA])).length >= 1,
+  'deleting a user keeps their audit entries with actor cleared');
+let orgEDeleted = true;
+try { await one(`delete from organisations where id=$1`, [orgE]); } catch (e) { orgEDeleted = false; console.log('   ', e.message); }
+ok(orgEDeleted && (await one(`select 1 from audit_log where org_id=$1`, [orgE])).length === 0,
+  'deleting an organisation with audit entries succeeds');
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);
