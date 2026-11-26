@@ -1,7 +1,19 @@
 /** ISO timestamp for 23:59:59 on `ymd` (YYYY-MM-DD) in the given IANA zone. */
 export function endOfDayInZone(ymd: string, timeZone: string): string {
+  return zonedTimeToIso(ymd, 23, 59, 59, timeZone);
+}
+
+/** Hour of day (0–23) at `date` in the given zone. */
+export function hourInZone(date: Date, timeZone: string): number {
+  return Number(
+    new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(date),
+  );
+}
+
+/** ISO timestamp for a wall-clock time on `ymd` in the given IANA zone. */
+export function zonedTimeToIso(ymd: string, h: number, min: number, s: number, timeZone: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
-  const guess = Date.UTC(y, m - 1, d, 23, 59, 59);
+  const guess = Date.UTC(y, m - 1, d, h, min, s);
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",

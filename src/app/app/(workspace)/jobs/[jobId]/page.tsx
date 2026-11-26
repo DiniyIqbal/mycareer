@@ -63,9 +63,12 @@ async function Job(props: Pick<Props, "params" | "searchParams">) {
         <Link href="/app/jobs" className="text-sm text-zinc-500 hover:underline">← Jobs</Link>
         <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
-          <Link href={`/app/candidates?job=${job.id}`} className="text-sm font-medium underline">
-            {applicants} {applicants === 1 ? "candidate" : "candidates"} →
-          </Link>
+          <span className="flex gap-4 text-sm font-medium">
+            <Link href={`/app/jobs/${job.id}/pipeline`} className="underline">Pipeline</Link>
+            <Link href={`/app/candidates?job=${job.id}`} className="underline">
+              {applicants} {applicants === 1 ? "candidate" : "candidates"} →
+            </Link>
+          </span>
         </div>
         {created && (
           <p role="status" className="mt-2 text-sm text-green-700 dark:text-green-500">

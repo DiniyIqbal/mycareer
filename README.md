@@ -38,6 +38,14 @@ In Supabase Auth → URL Configuration, set Site URL to `http://localhost:3000` 
 | `npm run email:test -- you@example.com` | Sends one test email with the Gmail settings in `.env.local` |
 | `npm run test:db` | Applies all migrations to in-memory Postgres (PGlite) and checks RLS, tenant isolation and pipeline triggers. No Docker needed. |
 
+## Email queue worker
+
+Stage moves queue emails in `messages` (interview invite and offer at once, rejection after 48 hours). Due emails are sent straight after the move. Delayed ones, and ones held back by quiet hours (8am–9pm in the candidate's time zone) or a failed attempt, are sent by `GET /api/cron/messages`. Call it every 5 minutes with `Authorization: Bearer $CRON_SECRET`:
+
+- **Vercel:** add `{"crons":[{"path":"/api/cron/messages","schedule":"*/5 * * * *"}]}` to `vercel.json` and set `CRON_SECRET`. Vercel sends the header itself.
+- **Anywhere else:** any scheduler, e.g. `curl -H "Authorization: Bearer $CRON_SECRET" https://your-site/api/cron/messages`.
+- **Locally:** run that curl against `http://localhost:3000` when you want delayed emails to go out.
+
 ## Layout
 
 ```
@@ -72,7 +80,8 @@ supabase/tests                   schema test (PGlite)
 - [x] Application form: resume upload, screening answers, PDPA consent, confirmation email (AP-03, AP-04)
 - [ ] Malware scanning and DOCX→PDF preview for uploaded resumes
 - [x] Candidate list + profile + audited resume access (HR-04, HR-05)
-- [ ] Pipeline board with realtime (HR-06)
+- [x] Pipeline board with realtime, rejection reason and undo (HR-06)
 - [ ] Notes, @mentions, hiring-manager assignment, templates (HR-07, HR-08)
-- [ ] Message sender worker (quiet hours, retries)
+- [x] Message sender worker (quiet hours, retries); needs a scheduler in production
+- [ ] Recover messages stuck in `sending` if a send crashes mid-way
 - [ ] Data export/deletion requests (AP-05), PWA, Bahasa Melayu, WCAG pass
