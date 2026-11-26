@@ -310,5 +310,55 @@ ok(doneReq.status === 'completed' && doneReq.candidate_id === null && doneReq.ha
 ok((await one(`select 1 from audit_log where action='candidate.erase' and entity_id=$1`, [aliId])).length === 1, 'erasure is audited');
 ok(await erase(A, delReq) === 'MC422', 'a completed request cannot be replayed');
 
+// Retention: automatic deletion N months after the last role closed
+const R = '88888888-8888-8888-8888-888888888888';
+await one(`insert into auth.users(id,email) values ($1,'r@retain.test')`, [R]);
+const [{ create_organisation: orgR }] = await as('authenticated', R, () => one(`select public.create_organisation('Retain Co','retain-co')`));
+const [{ id: newR }] = await one(`select id from pipeline_stages where org_id=$1 and kind='new'`, [orgR]);
+const jobR = async (title) => (await one(`insert into jobs(org_id,title,status,published_at) values ($1,$2,'published',now()) returning id`, [orgR, title]))[0].id;
+const candR = async (email, created = 'now()') => (await one(`insert into candidates(org_id,email,full_name,created_at) values ($1,$2,$2,${created}) returning id`, [orgR, email]))[0].id;
+const applyR = (job, cand, file) => one(`with f as (insert into candidate_files(org_id,candidate_id,storage_path,original_name,mime_type,size_bytes)
+  values ($1,$3,$4,'cv.pdf','application/pdf',10) returning id)
+  insert into applications(org_id,job_id,candidate_id,stage_id,resume_file_id) select $1,$2,$3,$5,f.id from f`, [orgR, job, cand, file, newR]);
+const jOld = await jobR('Closed long ago'), jOpen = await jobR('Still open'), jRecent = await jobR('Closed recently'), jLapsed = await jobR('Closing date passed');
+const cOld = await candR('old@r.test'), cMixed = await candR('mixed@r.test'), cRecent = await candR('recent@r.test'),
+      cLapsed = await candR('lapsed@r.test'), cNone = await candR('none@r.test', "now() - interval '13 months'");
+await applyR(jOld, cOld, `${orgR}/old.pdf`); await applyR(jOld, cMixed, `${orgR}/mixed1.pdf`); await applyR(jOpen, cMixed, `${orgR}/mixed2.pdf`);
+await applyR(jRecent, cRecent, `${orgR}/recent.pdf`); await applyR(jLapsed, cLapsed, `${orgR}/lapsed.pdf`);
+
+await as('authenticated', R, () => one(`update jobs set status='closed' where id=$1`, [jRecent]));
+const [{ closed_at: cAt }] = await one(`select closed_at from jobs where id=$1`, [jRecent]);
+ok(cAt !== null, 'closing a job records when it closed');
+await as('authenticated', R, () => one(`update jobs set status='published' where id=$1`, [jRecent]));
+ok((await one(`select closed_at from jobs where id=$1`, [jRecent]))[0].closed_at === null, 'reopening clears it');
+await as('authenticated', R, () => one(`update jobs set status='closed' where id=$1`, [jRecent]));
+await one(`update jobs set closed_at = now() - interval '2 months' where id=$1`, [jRecent]);
+await as('authenticated', R, () => one(`update jobs set status='closed' where id=$1`, [jOld]));
+await one(`update jobs set closed_at = now() - interval '13 months' where id=$1`, [jOld]);
+await one(`update jobs set closes_at = now() - interval '14 months' where id=$1`, [jLapsed]);
+
+const sched = await as('authenticated', R, () => one(`select candidate_id, delete_after from public.candidate_retention_schedule($1)`, [orgR]));
+const due = Object.fromEntries(sched.map((s) => [s.candidate_id, new Date(s.delete_after)]));
+ok(!due[cMixed], 'candidate with an application to an open job is kept');
+ok(due[cRecent] && Math.round((due[cRecent] - Date.now()) / 86_400_000 / 30) === 10, 'recently closed role: due about 10 months from now');
+ok(due[cOld] < new Date() && due[cLapsed] < new Date() && due[cNone] < new Date(), 'old, lapsed and application-less candidates are overdue');
+ok(await errCode(() => as('authenticated', HM, () => one(`select * from public.candidate_retention_schedule($1)`, [orgA]))) === '42501',
+  'hiring managers cannot see the deletion schedule');
+ok(await errCode(() => as('authenticated', R, () => one(`select * from public.purge_expired_candidates(10)`))) === '42501',
+  'signed-in users cannot run the purge');
+
+const beforeA = (await one(`select count(*)::int n from candidates where org_id=$1`, [orgA]))[0].n;
+const purged = await as('service_role', null, () => one(`select * from public.purge_expired_candidates(100)`));
+const purgedR = purged.filter((p) => p.org_id === orgR);
+ok(purgedR.length === 3 && [cOld, cLapsed, cNone].every((c) => purgedR.some((p) => p.candidate_id === c)), 'purge deletes exactly the overdue candidates');
+ok(purgedR.find((p) => p.candidate_id === cOld).paths.includes(`${orgR}/old.pdf`), 'and returns their resume paths');
+ok((await one(`select id from candidates where org_id=$1 order by email`, [orgR])).map((x) => x.id).sort().join() === [cMixed, cRecent].sort().join(),
+  'kept: still-open and recent candidates');
+ok((await one(`select count(*)::int n from candidates where org_id=$1`, [orgA]))[0].n === beforeA, 'other organisations are untouched (their jobs are open)');
+ok((await one(`select 1 from audit_log where org_id=$1 and action='candidate.retention_delete'`, [orgR])).length === 3, 'each deletion is audited');
+await one(`update organisations set retention_months = 1 where id=$1`, [orgR]);
+ok((await as('service_role', null, () => one(`select * from public.purge_expired_candidates(100)`))).some((p) => p.candidate_id === cRecent),
+  'a shorter retention period takes effect on the next run');
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

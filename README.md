@@ -42,9 +42,13 @@ In Supabase Auth → URL Configuration, set Site URL to `http://localhost:3000` 
 
 Stage moves queue emails in `messages` (interview invite and offer at once, rejection after 48 hours). Due emails are sent straight after the move. Delayed ones, and ones held back by quiet hours (8am–9pm in the candidate's time zone) or a failed attempt, are sent by `GET /api/cron/messages`. Call it every 5 minutes with `Authorization: Bearer $CRON_SECRET`:
 
-- **Vercel:** add `{"crons":[{"path":"/api/cron/messages","schedule":"*/5 * * * *"}]}` to `vercel.json` and set `CRON_SECRET`. Vercel sends the header itself.
+- **Vercel:** add `{"crons":[{"path":"/api/cron/messages","schedule":"*/5 * * * *"},{"path":"/api/cron/retention","schedule":"0 19 * * *"}]}` to `vercel.json` and set `CRON_SECRET`. Vercel sends the header itself.
 - **Anywhere else:** any scheduler, e.g. `curl -H "Authorization: Bearer $CRON_SECRET" https://your-site/api/cron/messages`.
 - **Locally:** run that curl against `http://localhost:3000` when you want delayed emails to go out.
+
+### Retention worker
+
+`GET /api/cron/retention` (same secret, once a day; `0 19 * * *` UTC is 3am in Malaysia) deletes candidates whose last role closed more than the organisation's retention period ago (default 12 months). A role counts as closed when the job is closed or archived, or once its closing date passes. Candidates with an application to a job that is still open are kept. Each deletion removes the candidate's rows by cascade and their resume files, and is audited as `candidate.retention_delete`. HR can see who is due in Settings → Privacy and on each profile.
 
 ## Layout
 
@@ -87,5 +91,6 @@ supabase/tests                   schema test (PGlite)
 - [x] Message sender worker (quiet hours, retries); needs a scheduler in production
 - [ ] Recover messages stuck in `sending` if a send crashes mid-way
 - [x] Data access/correction/deletion requests with email verification, 21-day queue, export link and erasure (AP-05)
-- [ ] Automatic deletion after the retention period in the privacy notice (12 months)
+- [x] Automatic deletion after the retention period (default 12 months, set in Settings → Privacy) and versioned privacy notice editor
+- [ ] Talent-pool opt-in (candidates agreeing to be kept longer)
 - [ ] PWA, Bahasa Melayu, WCAG pass

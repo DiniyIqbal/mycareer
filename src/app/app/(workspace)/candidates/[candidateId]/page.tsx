@@ -76,6 +76,14 @@ async function Candidate({ params }: Pick<Props, "params">) {
   const candidate = candidateRes.data;
   if (!candidate) notFound(); // also covers candidates a hiring manager may not see
 
+  // Retention (HR only): when this candidate's data will be deleted, if scheduled.
+  let deleteAfter: string | null = null;
+  if (isHr(m)) {
+    const { data: schedule } = await supabase.rpc("candidate_retention_schedule", { p_org: m.orgId });
+    deleteAfter = ((schedule ?? []) as { candidate_id: string; delete_after: string }[])
+      .find((s) => s.candidate_id === candidateId)?.delete_after ?? null;
+  }
+
   const apps = (appsRes.data ?? []) as unknown as Application[];
   const appIds = apps.map((a) => a.id);
   const [historyRes, messagesRes, consentRes, notesRes] = await Promise.all([
@@ -129,6 +137,15 @@ async function Candidate({ params }: Pick<Props, "params">) {
           </Detail>
           <Detail label="Time zone">{candidate.timezone ?? "Unknown"}</Detail>
           <Detail label="First applied">{formatDate(candidate.created_at, tz)}</Detail>
+          {isHr(m) && (
+            <Detail label="Data deleted">
+              {deleteAfter ? (
+                <Link href="/app/settings/privacy" className="hover:underline">{formatDate(deleteAfter, tz)} (retention policy)</Link>
+              ) : (
+                <span className="text-zinc-500">Not scheduled while a job they applied to is open</span>
+              )}
+            </Detail>
+          )}
         </dl>
       </header>
 
