@@ -34,7 +34,13 @@ async function List() {
   if (error) throw error;
   const unread = (data ?? []).filter((n) => !n.read_at).length;
 
-  if (!data?.length) return <p className="text-zinc-600 dark:text-zinc-400">Nothing yet. You will see it here when a colleague @mentions you in a note.</p>;
+  if (!data?.length) {
+    return (
+      <p className="text-zinc-600 dark:text-zinc-400">
+        Nothing yet. You will see it here when a colleague @mentions you in a note or adds you to a job.
+      </p>
+    );
+  }
 
   return (
     <>
@@ -55,8 +61,12 @@ async function List() {
                 <span className="min-w-0">
                   <span className="block text-sm">
                     {!n.read_at && <span className="sr-only">Unread: </span>}
-                    <strong>{p.author_name ?? "A colleague"}</strong> mentioned you on{" "}
-                    <strong>{p.candidate_name}</strong>{p.job_title ? ` (${p.job_title})` : ""}
+                    {n.kind === "job_assigned" ? (
+                      <><strong>{p.author_name ?? "A colleague"}</strong> added you to the hiring team for <strong>{p.job_title}</strong></>
+                    ) : (
+                      <><strong>{p.author_name ?? "A colleague"}</strong> mentioned you on{" "}
+                        <strong>{p.candidate_name}</strong>{p.job_title ? ` (${p.job_title})` : ""}</>
+                    )}
                   </span>
                   {p.excerpt && <span className="mt-0.5 block truncate text-sm text-zinc-600 dark:text-zinc-400">{p.excerpt}</span>}
                   <span className="mt-0.5 block text-xs text-zinc-500">{formatDateTime(n.created_at, m.orgTimezone)}</span>

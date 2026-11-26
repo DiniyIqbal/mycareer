@@ -217,14 +217,64 @@ await one(`insert into auth.users(id,email) values ($1,'e@leaving.test')`, [E]);
 const [{ create_organisation: orgE }] = await as('authenticated', E, () => one(`select public.create_organisation('Leaving Co','leaving-co')`));
 await one(`insert into audit_log(org_id,actor_id,action,entity) values ($1,$2,'resume.view','candidate_file')`, [orgE, E]);
 await one(`insert into audit_log(org_id,actor_id,action,entity) values ($1,$2,'resume.view','candidate_file')`, [orgA, E]);
-let userDeleted = true;
-try { await one(`delete from auth.users where id=$1`, [E]); } catch (e) { userDeleted = false; console.log('   ', e.message); }
-ok(userDeleted && (await one(`select 1 from audit_log where org_id=$1 and actor_id is null and action='resume.view'`, [orgA])).length >= 1,
-  'deleting a user keeps their audit entries with actor cleared');
+let soleAdminDelete = false;
+try { await one(`delete from auth.users where id=$1`, [E]); } catch (e) { soleAdminDelete = /at least one admin/.test(e.message); }
+ok(soleAdminDelete, "an organisation's only admin account cannot be deleted while the organisation exists");
 let orgEDeleted = true;
 try { await one(`delete from organisations where id=$1`, [orgE]); } catch (e) { orgEDeleted = false; console.log('   ', e.message); }
 ok(orgEDeleted && (await one(`select 1 from audit_log where org_id=$1`, [orgE])).length === 0,
   'deleting an organisation with audit entries succeeds');
+let userDeleted = true;
+try { await one(`delete from auth.users where id=$1`, [E]); } catch (e) { userDeleted = false; console.log('   ', e.message); }
+ok(userDeleted && (await one(`select 1 from audit_log where org_id=$1 and actor_id is null and action='resume.view'`, [orgA])).length >= 1,
+  'deleting a user keeps their audit entries with actor cleared');
+
+// Team invitations (accept_invitation) and member safeguards
+const N = '66666666-6666-6666-6666-666666666666', W = '77777777-7777-7777-7777-777777777777';
+await one(`insert into auth.users(id,email,raw_user_meta_data) values ($1,'New.Person@acme.test','{"full_name":"Nina"}'),($2,'wrong@acme.test','{}')`, [N, W]);
+const invite = (hash, email, extra = '') => as('authenticated', A, () =>
+  one(`insert into invitations(org_id,email,role,token_hash,invited_by${extra ? ',expires_at' : ''}) values ($1,$2,'recruiter',$3,$4${extra ? `,${extra}` : ''}) returning id`, [orgA, email, hash, A]));
+await invite('h1', 'new.person@acme.test');
+let hmInvite = false;
+try { await as('authenticated', HM, () => one(`insert into invitations(org_id,email,role,token_hash,invited_by) values ($1,'x@y.test','admin','hx',$2)`, [orgA, HM])); } catch { hmInvite = true; }
+ok(hmInvite, 'only admins can invite');
+let dupInvite = false;
+try { await invite('h1b', 'new.person@acme.test'); } catch { dupInvite = true; }
+ok(dupInvite, 'one open invitation per email');
+ok((await as('authenticated', HM, () => one(`select id from invitations`))).length === 0, "non-admins cannot see invitations");
+
+const accept = (uid, hash) => errCode(() => as('authenticated', uid, () => one(`select public.accept_invitation($1)`, [hash])));
+ok(await accept(W, 'h1') === 'MC404', 'invitation for another email is refused');
+ok(await accept(N, 'nope') === 'MC401', 'unknown token is refused');
+ok(await accept(N, 'h1') === null, 'invited person accepts (email matched case-insensitively)');
+const nRow = await one(`select role, full_name from members where org_id=$1 and user_id=$2`, [orgA, N]);
+ok(nRow[0]?.role === 'recruiter' && nRow[0].full_name === 'Nina', 'they join with the invited role and their name');
+ok(await accept(N, 'h1') === 'MC402', 'an invitation works only once');
+await invite('h2', 'wrong@acme.test', "now() - interval '1 day'");
+ok(await accept(W, 'h2') === 'MC403', 'expired invitation is refused');
+await one(`update invitations set expires_at = now() + interval '1 day' where token_hash='h2'`);
+await as('authenticated', A, () => one(`update invitations set revoked_at = now() where token_hash='h2'`));
+ok(await accept(W, 'h2') === 'MC401', 'revoked invitation is refused');
+await invite('h3', 'b@other.test');
+ok(await accept(B, 'h3') === 'MC405', 'someone already in another organisation cannot join a second');
+
+let selfDemote = false;
+try { await as('authenticated', A, () => one(`update members set role='recruiter' where org_id=$1 and user_id=$2`, [orgA, A])); } catch (e) { selfDemote = /at least one admin/.test(e.message); }
+ok(selfDemote, 'the last admin cannot be demoted');
+let selfRemove = false;
+try { await as('authenticated', A, () => one(`delete from members where org_id=$1 and user_id=$2`, [orgA, A])); } catch (e) { selfRemove = /at least one admin/.test(e.message); }
+ok(selfRemove, 'the last admin cannot be removed');
+await as('authenticated', A, () => one(`update members set role='admin' where org_id=$1 and user_id=$2`, [orgA, N]));
+await as('authenticated', N, () => one(`update members set role='recruiter' where org_id=$1 and user_id=$2`, [orgA, N]));
+ok((await one(`select role from members where user_id=$1`, [N]))[0].role === 'recruiter', 'with two admins, one can step down');
+let memberInsert = false;
+try { await as('authenticated', A, () => one(`insert into members(org_id,user_id,role,email) values ($1,$2,'admin','w@x.test')`, [orgA, W])); } catch { memberInsert = true; }
+ok(memberInsert, 'members cannot be added directly, only by invitation');
+let emailEdit = false;
+try { await as('authenticated', A, () => one(`update members set email='spoof@x.test' where user_id=$1`, [N])); } catch { emailEdit = true; }
+ok(emailEdit, "admins cannot change a member's email");
+const hmByRecruiter = await as('authenticated', N, () => one(`update members set role='admin' where user_id=$1 returning user_id`, [HM]));
+ok(hmByRecruiter.length === 0, 'recruiters cannot change roles');
 
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASSED');
 process.exit(failures ? 1 : 0);

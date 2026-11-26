@@ -40,16 +40,21 @@ export async function signUp(_: AuthState, formData: FormData): Promise<AuthStat
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const { email, password, full_name } = parsed.data;
+  // New organisations go to onboarding; invited people go back to their invite.
+  const requested = safeNext(formData.get("next"));
+  const next = requested === "/app" ? "/app/onboarding" : requested;
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name },
-      emailRedirectTo: `${publicEnv.siteUrl()}/auth/confirm?next=/app/onboarding`,
+      emailRedirectTo: `${publicEnv.siteUrl()}/auth/confirm?next=${encodeURIComponent(next)}`,
     },
   });
   if (error) return { error: error.message };
+  // With email confirmation turned off, Supabase signs the user in at once.
+  if (data.session) redirect(next);
   return { message: "Check your email to confirm your account." };
 }
 

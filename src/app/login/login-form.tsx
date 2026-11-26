@@ -5,8 +5,12 @@ import { signIn, signUp, type AuthState } from "./actions";
 
 const input = "w-full rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900";
 
-export function LoginForm({ next }: { next?: string }) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+export function LoginForm({ next, initialMode = "signin", email }: {
+  next?: string;
+  initialMode?: "signin" | "signup";
+  email?: string;
+}) {
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [state, action, pending] = useActionState<AuthState, FormData>(
     mode === "signin" ? signIn : signUp,
     {},
@@ -23,7 +27,7 @@ export function LoginForm({ next }: { next?: string }) {
       )}
       <div className="space-y-1">
         <label htmlFor="email" className="text-sm font-medium">Work email</label>
-        <input id="email" name="email" type="email" autoComplete="email" required className={input} />
+        <input id="email" name="email" type="email" autoComplete="email" required defaultValue={email} className={input} />
       </div>
       <div className="space-y-1">
         <label htmlFor="password" className="text-sm font-medium">Password</label>

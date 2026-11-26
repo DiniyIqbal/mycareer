@@ -36,6 +36,11 @@ export function dateInZone(iso: string, timeZone: string): string {
   );
 }
 
+/** True when `iso` is in the past (request-time check for dynamic pages). */
+export function isPast(iso: string): boolean {
+  return Date.parse(iso) < Date.now();
+}
+
 export function formatDateTime(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-MY", {
     timeZone, day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",

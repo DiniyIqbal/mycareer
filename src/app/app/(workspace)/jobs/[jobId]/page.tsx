@@ -5,8 +5,10 @@ import { isHr, requireMembership } from "@/lib/auth/membership";
 import { dateInZone } from "@/lib/dates";
 import { publicEnv } from "@/lib/env";
 import type { JobStatus, ScreeningQuestion } from "@/lib/jobs/schema";
+import { memberName } from "@/lib/notes/mentions";
 import { createClient } from "@/lib/supabase/server";
 import { JobForm, type JobFormValues } from "../job-form";
+import { HiringTeam } from "./hiring-team";
 import { StatusPanel } from "../status-panel";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,12 +30,17 @@ async function Job(props: Pick<Props, "params" | "searchParams">) {
 
   const m = await requireMembership();
   const supabase = await createClient();
-  const [{ data: job, error }, { data: departments }] = await Promise.all([
+  const [{ data: job, error }, { data: departments }, { data: managers }, { data: assignments }] = await Promise.all([
     supabase.from("jobs").select("*, departments(name), applications(count)").eq("id", jobId).eq("org_id", m.orgId).maybeSingle(),
     supabase.from("departments").select("name").eq("org_id", m.orgId).order("name"),
+    supabase.from("members").select("user_id, full_name, email").eq("org_id", m.orgId).eq("role", "hiring_manager"),
+    supabase.from("job_assignments").select("user_id").eq("org_id", m.orgId).eq("job_id", jobId),
   ]);
   if (error) throw error;
   if (!job) notFound(); // also covers jobs a hiring manager is not assigned to (RLS)
+
+  const assignedIds = new Set((assignments ?? []).map((a) => a.user_id));
+  const people = (managers ?? []).map((x) => ({ id: x.user_id, name: memberName(x), email: x.email }));
 
   const canManage = isHr(m);
   const applicants = (job.applications as unknown as { count: number }[] | null)?.[0]?.count ?? 0;
@@ -81,6 +88,13 @@ async function Job(props: Pick<Props, "params" | "searchParams">) {
         status={job.status as JobStatus}
         canManage={canManage}
         publicUrl={`${publicEnv.siteUrl()}/careers/${m.orgSlug}/jobs/${job.id}`}
+      />
+      <HiringTeam
+        jobId={job.id}
+        assigned={people.filter((p) => assignedIds.has(p.id))}
+        available={people.filter((p) => !assignedIds.has(p.id))}
+        canManage={canManage}
+        isAdmin={m.role === "admin"}
       />
       {/* Archived jobs are read-only until restored. */}
       <JobForm

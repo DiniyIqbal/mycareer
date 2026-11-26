@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import { signOut } from "@/app/login/actions";
 import { isHr, requireMembership } from "@/lib/auth/membership";
 import { createClient } from "@/lib/supabase/server";
+import { ROLE_LABEL } from "@/lib/team/roles";
 
-const ROLE_LABEL = { admin: "Org Admin", recruiter: "Recruiter", hiring_manager: "Hiring Manager" } as const;
 
 export default function WorkspaceLayout({ children }: LayoutProps<"/app">) {
   return (
@@ -39,7 +39,7 @@ async function WorkspaceNav() {
         <Link href="/app" className="text-sm hover:underline">Dashboard</Link>
         <Link href="/app/jobs" className="text-sm hover:underline">Jobs</Link>
         <Link href="/app/candidates" className="text-sm hover:underline">Candidates</Link>
-        {isHr(m) && <Link href="/app/settings/templates" className="text-sm hover:underline">Settings</Link>}
+        {isHr(m) && <Link href="/app/settings/team" className="text-sm hover:underline">Settings</Link>}
       </nav>
       <div className="flex items-center gap-4 text-sm">
         <Link href="/app/notifications" className="relative hover:underline"

@@ -42,5 +42,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Careers pages are public and cacheable, so they skip the proxy.
-  matcher: ["/app/:path*", "/login", "/auth/:path*"],
+  matcher: ["/app/:path*", "/login", "/auth/:path*", "/invite/:path*"],
 };

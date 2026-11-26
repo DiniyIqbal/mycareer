@@ -16,6 +16,12 @@ export default function LoginPage(props: PageProps<"/login">) {
 }
 
 async function LoginWithNext({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
-  const { next } = await searchParams;
-  return <LoginForm next={typeof next === "string" ? next : undefined} />;
+  const { next, mode, email } = await searchParams;
+  return (
+    <LoginForm
+      next={typeof next === "string" ? next : undefined}
+      initialMode={mode === "signup" ? "signup" : "signin"}
+      email={typeof email === "string" ? email.slice(0, 254) : undefined}
+    />
+  );
 }
