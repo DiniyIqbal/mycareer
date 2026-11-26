@@ -36,6 +36,12 @@ export function dateInZone(iso: string, timeZone: string): string {
   );
 }
 
+export function formatDateTime(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-MY", {
+    timeZone, day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(new Date(iso));
+}
+
 export function formatDate(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-MY", { timeZone, day: "numeric", month: "short", year: "numeric" }).format(
     new Date(iso),

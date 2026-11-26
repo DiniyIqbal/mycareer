@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { signOut } from "@/app/login/actions";
-import { requireMembership } from "@/lib/auth/membership";
+import { isHr, requireMembership } from "@/lib/auth/membership";
+import { createClient } from "@/lib/supabase/server";
 
 const ROLE_LABEL = { admin: "Org Admin", recruiter: "Recruiter", hiring_manager: "Hiring Manager" } as const;
 
@@ -24,6 +25,13 @@ export default function WorkspaceLayout({ children }: LayoutProps<"/app">) {
 
 async function WorkspaceNav() {
   const m = await requireMembership();
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", m.userId)
+    .is("read_at", null);
+  const unread = count ?? 0;
   return (
     <>
       <nav className="flex items-center gap-5">
@@ -31,8 +39,20 @@ async function WorkspaceNav() {
         <Link href="/app" className="text-sm hover:underline">Dashboard</Link>
         <Link href="/app/jobs" className="text-sm hover:underline">Jobs</Link>
         <Link href="/app/candidates" className="text-sm hover:underline">Candidates</Link>
+        {isHr(m) && <Link href="/app/settings/templates" className="text-sm hover:underline">Settings</Link>}
       </nav>
       <div className="flex items-center gap-4 text-sm">
+        <Link href="/app/notifications" className="relative hover:underline"
+          aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}>
+          <svg aria-hidden viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {unread > 0 && (
+            <span className="absolute -right-2 -top-1.5 rounded-full bg-sky-600 px-1.5 text-[10px] font-semibold leading-4 text-white">
+              {unread > 99 ? "99+" : unread}
+            </span>
+          )}
+        </Link>
         <Link href={`/careers/${m.orgSlug}`} className="text-zinc-600 hover:underline dark:text-zinc-400">
           Careers page
         </Link>

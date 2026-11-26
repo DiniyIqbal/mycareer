@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import type { StoredAnswer } from "@/lib/applications/validate";
 import { isHr, requireMembership } from "@/lib/auth/membership";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatDateTime } from "@/lib/dates";
+import { memberName as displayName, type Mentionable } from "@/lib/notes/mentions";
 import { createClient } from "@/lib/supabase/server";
 import { sourceLabel, StageBadge } from "../stage-badge";
+import { Notes, type NoteView } from "./notes";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -76,7 +78,7 @@ async function Candidate({ params }: Pick<Props, "params">) {
 
   const apps = (appsRes.data ?? []) as unknown as Application[];
   const appIds = apps.map((a) => a.id);
-  const [historyRes, messagesRes, consentRes] = await Promise.all([
+  const [historyRes, messagesRes, consentRes, notesRes] = await Promise.all([
     supabase
       .from("stage_history")
       .select("id, application_id, from_stage_id, to_stage_id, changed_by, reason, changed_at")
@@ -92,11 +94,27 @@ async function Candidate({ params }: Pick<Props, "params">) {
       .from("consent_records")
       .select("id, application_id, purpose, given_at, withdrawn_at, consent_notices(version, locale)")
       .eq("candidate_id", candidateId),
+    supabase
+      .from("notes")
+      .select("id, application_id, author_id, body, mentions, created_at, updated_at")
+      .in("application_id", appIds)
+      .order("created_at", { ascending: true }),
   ]);
-  for (const r of [historyRes, messagesRes, consentRes]) if (r.error) throw r.error;
+  for (const r of [historyRes, messagesRes, consentRes, notesRes]) if (r.error) throw r.error;
 
   const stageName = new Map((stagesRes.data ?? []).map((s) => [s.id, s.name]));
-  const memberName = new Map((membersRes.data ?? []).map((x) => [x.user_id, x.full_name || x.email]));
+  const memberName = new Map((membersRes.data ?? []).map((x) => [x.user_id, displayName(x)]));
+  const mentionable: Mentionable[] = (membersRes.data ?? []).map((x) => ({ id: x.user_id, name: displayName(x) }));
+  const noteViews = (appId: string): NoteView[] =>
+    byApp(notesRes.data, appId).map((n) => ({
+      id: n.id,
+      authorName: memberName.get(n.author_id) ?? "Former member",
+      mine: n.author_id === m.userId,
+      body: n.body,
+      mentions: n.mentions ?? [],
+      createdLabel: formatDateTime(n.created_at, tz),
+      edited: Date.parse(n.updated_at) - Date.parse(n.created_at) > 1000,
+    }));
   const byApp = <T extends { application_id: string | null }>(rows: T[] | null, id: string) =>
     (rows ?? []).filter((r) => r.application_id === id);
 
@@ -156,6 +174,10 @@ async function Candidate({ params }: Pick<Props, "params">) {
                         ))}
                       </dl>
                     )}
+                  </Block>
+
+                  <Block title="Notes">
+                    <Notes applicationId={a.id} notes={noteViews(a.id)} members={mentionable} />
                   </Block>
                 </div>
 

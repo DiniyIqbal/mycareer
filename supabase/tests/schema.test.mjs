@@ -183,6 +183,27 @@ let stageInUse = false;
 try { await one(`delete from pipeline_stages where id=$1`, [stage.new]); } catch { stageInUse = true; }
 ok(stageInUse, 'a stage with applications cannot be deleted');
 
+// Notes and notifications: owners may only change the intended columns
+const [{ id: noteId }] = await one(`select id from notes limit 1`);
+const [{ author_id: noteAuthor }] = await one(`select author_id from notes where id=$1`, [noteId]);
+const edited = await as('authenticated', noteAuthor, () => one(`update notes set body='Strong, edited' where id=$1 returning id`, [noteId]));
+ok(edited.length === 1, 'author can edit their note text');
+let repoint = false;
+try { await as('authenticated', noteAuthor, () => one(`update notes set org_id=$1 where id=$2`, [orgB, noteId])); } catch { repoint = true; }
+ok(repoint, 'author cannot move a note to another organisation');
+const otherEdit = await as('authenticated', A, () => one(`update notes set body='hijack' where id=$1 returning id`, [noteId]));
+ok(otherEdit.length === 0, "colleague cannot edit someone else's note");
+await one(`insert into notifications(org_id,user_id,kind,payload) values ($1,$2,'mention','{}')`, [orgA, A]);
+let notifInsert = false;
+try { await as('authenticated', A, () => one(`insert into notifications(org_id,user_id,kind) values ($1,$2,'mention')`, [orgA, HM])); } catch { notifInsert = true; }
+ok(notifInsert, 'users cannot create notifications for others');
+const marked = await as('authenticated', A, () => one(`update notifications set read_at=now() where user_id=$1 returning id`, [A]));
+ok(marked.length === 1, 'user can mark own notification read');
+let notifEdit = false;
+try { await as('authenticated', A, () => one(`update notifications set payload='{"x":1}' where user_id=$1`, [A])); } catch { notifEdit = true; }
+ok(notifEdit, 'user cannot rewrite a notification');
+ok((await as('authenticated', HM, () => one(`select id from notifications`))).length === 0, "users cannot read others' notifications");
+
 // Audit log: still immutable directly, but follows user / organisation deletion
 let auditEdit = false;
 try { await one(`update audit_log set action='tampered'`); } catch { auditEdit = true; }

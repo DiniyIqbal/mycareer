@@ -81,7 +81,8 @@ supabase/tests                   schema test (PGlite)
 - [ ] Malware scanning and DOCX→PDF preview for uploaded resumes
 - [x] Candidate list + profile + audited resume access (HR-04, HR-05)
 - [x] Pipeline board with realtime, rejection reason and undo (HR-06)
-- [ ] Notes, @mentions, hiring-manager assignment, templates (HR-07, HR-08)
+- [x] Notes with @mentions and in-app notifications; editable EN/MS email templates and stage-email settings (HR-07, HR-08)
+- [ ] Team invites and hiring-manager assignment to jobs
 - [x] Message sender worker (quiet hours, retries); needs a scheduler in production
 - [ ] Recover messages stuck in `sending` if a send crashes mid-way
 - [ ] Data export/deletion requests (AP-05), PWA, Bahasa Melayu, WCAG pass
